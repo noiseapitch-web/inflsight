@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+:root {
+  --bg:  #09090f;
+  --s1:  #0f0f18;
+  --s2:  #151520;
+  --s3:  #1c1c2a;
+  --bd:  #232336;
+  --bd2: #2d2d45;
+  --acc: #7b6cf6;
+  --acc2:#a899ff;
+  --tx:  #e8e8f2;
+  --tx2: #8080a0;
+  --tx3: #44445a;
+  --g:   #0dcc8a;
+  --o:   #f97316;
+  --r:   #f43f5e;
+  --y:   #f59e0b;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bd2); border-radius: 2px; }

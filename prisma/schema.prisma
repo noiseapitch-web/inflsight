@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Platform {
+  INSTAGRAM
+  YOUTUBE
+  TIKTOK
+  NAVER_BLOG
+  ETC
+  UNKNOWN
+}
+
+enum MetricSource {
+  OFFICIAL_API
+  PUBLIC_PAGE
+  MANUAL_INPUT
+  CSV_UPLOAD
+  MOCK
+  UNKNOWN
+}
+
+enum Confidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum OAuthStatus {
+  CONNECTED
+  EXPIRED
+  REVOKED
+  NONE
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Creator {
+  id        String   @id @default(cuid())
+  name      String
+  bio       String?
+  category  String?
+  contact   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts  CreatorAccount[]
+  contents  Content[]
+  campaigns CampaignCreator[]
+}
+
+model CreatorAccount {
+  id          String      @id @default(cuid())
+  creatorId   String
+  platform    Platform
+  handle      String
+  profileUrl  String
+  platformId  String?
+  oauthStatus OAuthStatus @default(NONE)
+  accessToken String?
+  tokenExpiry DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  creator Creator                @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  metrics AccountMetricSnapshot[]
+
+  @@unique([creatorId, platform])
+}
+
+model Campaign {
+  id        String         @id @default(cuid())
+  name      String
+  brandName String?
+  startDate DateTime?
+  endDate   DateTime?
+  budget    Int?
+  objective String?
+  status    CampaignStatus @default(DRAFT)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  creators CampaignCreator[]
+  contents Content[]
+}
+
+model CampaignCreator {
+  id         String  @id @default(cuid())
+  campaignId String
+  creatorId  String
+  fee        Int?
+  status     String?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator  Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, creatorId])
+}
+
+model Content {
+  id              String    @id @default(cuid())
+  campaignId      String
+  creatorId       String
+  platform        Platform
+  url             String
+  platformMediaId String?
+  contentType     String?
+  postedAt        DateTime?
+  fee             Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator  Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  metrics  ContentMetricSnapshot[]
+
+  @@index([campaignId])
+  @@index([creatorId])
+}
+
+model ContentMetricSnapshot {
+  id          String       @id @default(cuid())
+  contentId   String
+  metricName  String
+  metricValue Float?
+  source      MetricSource
+  confidence  Confidence
+  collectedAt DateTime
+  rawJson     Json?
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId, metricName, collectedAt])
+}
+
+model AccountMetricSnapshot {
+  id          String       @id @default(cuid())
+  accountId   String
+  metricName  String
+  metricValue Float?
+  source      MetricSource
+  confidence  Confidence
+  collectedAt DateTime
+  rawJson     Json?
+
+  account CreatorAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, metricName, collectedAt])
+}
+
+model OAuthInvite {
+  id        String    @id @default(cuid())
+  creatorId String
+  platform  Platform
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model SyncLog {
+  id        String       @id @default(cuid())
+  target    String
+  status    String
+  source    MetricSource
+  errorMsg  String?
+  createdAt DateTime     @default(now())
+}
