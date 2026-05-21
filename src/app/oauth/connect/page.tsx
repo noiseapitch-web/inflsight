@@ -39,10 +39,10 @@ export default async function OAuthConnectPage({ searchParams }: { searchParams:
   const appId = process.env.IG_APP_ID ?? "";
 
   // Instagram OAuth URL 생성
-  const igAuthUrl = new URL("https://api.instagram.com/oauth/authorize");
+  const igAuthUrl = new URL("https://www.instagram.com/oauth/authorize");
   igAuthUrl.searchParams.set("client_id", appId);
   igAuthUrl.searchParams.set("redirect_uri", `${baseUrl}/api/oauth/callback`);
-  igAuthUrl.searchParams.set("scope", "instagram_basic,instagram_manage_insights");
+  igAuthUrl.searchParams.set("scope", "instagram_business_basic,instagram_business_manage_insights");
   igAuthUrl.searchParams.set("response_type", "code");
   igAuthUrl.searchParams.set("state", token);
 
