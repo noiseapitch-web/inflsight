@@ -42,15 +42,18 @@ export async function GET(req: NextRequest) {
     const cleanCode = code.replace(/#_$/, "");
     console.log("[OAuth] token exchange request:", { redirect_uri: redirectUri, code: cleanCode });
 
+    // URLSearchParams는 redirect_uri를 percent-encode해서 Meta 검증 실패
+    // connect/page.tsx와 동일하게 raw(비인코딩) 전송
     const tokenRes = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
-      body: new URLSearchParams({
-        client_id:     process.env.IG_APP_ID ?? "",
-        client_secret: process.env.IG_APP_SECRET ?? "",
-        grant_type:    "authorization_code",
-        redirect_uri:  redirectUri,
-        code:          cleanCode, // 끝에 #_ 제거 (공식 문서 지침)
-      }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: [
+        `client_id=${encodeURIComponent(process.env.IG_APP_ID ?? "")}`,
+        `client_secret=${encodeURIComponent(process.env.IG_APP_SECRET ?? "")}`,
+        `grant_type=authorization_code`,
+        `redirect_uri=${redirectUri}`,
+        `code=${encodeURIComponent(cleanCode)}`,
+      ].join("&"),
     });
 
     const tokenData = await tokenRes.json() as {
