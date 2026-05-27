@@ -44,24 +44,32 @@ export async function GET(req: NextRequest) {
 
     // URLSearchParams는 redirect_uri를 percent-encode해서 Meta 검증 실패
     // connect/page.tsx와 동일하게 raw(비인코딩) 전송
+    const postBody = [
+      `client_id=${encodeURIComponent(process.env.IG_APP_ID ?? "")}`,
+      `client_secret=${encodeURIComponent(process.env.IG_APP_SECRET ?? "")}`,
+      `grant_type=authorization_code`,
+      `redirect_uri=${redirectUri}`,
+      `code=${encodeURIComponent(cleanCode)}`,
+    ].join("&");
+    console.log("[OAuth] POST body:", postBody.replace(/client_secret=[^&]+/, "client_secret=***"));
+
     const tokenRes = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: [
-        `client_id=${encodeURIComponent(process.env.IG_APP_ID ?? "")}`,
-        `client_secret=${encodeURIComponent(process.env.IG_APP_SECRET ?? "")}`,
-        `grant_type=authorization_code`,
-        `redirect_uri=${redirectUri}`,
-        `code=${encodeURIComponent(cleanCode)}`,
-      ].join("&"),
+      body: postBody,
     });
 
-    const tokenData = await tokenRes.json() as {
+    const rawBody = await tokenRes.text();
+    console.log("[OAuth] token response status:", tokenRes.status, "body:", rawBody);
+
+    let tokenData: {
       data?: { access_token?: string; user_id?: string; permissions?: string }[];
       access_token?: string;
       user_id?: number | string;
       error_message?: string;
     };
+    try { tokenData = JSON.parse(rawBody); }
+    catch { return NextResponse.redirect(`${BASE_URL}/oauth/error?msg=token_parse_error`); }
 
     // 새 API: data 배열 형태, 구버전: 평면 객체
     const shortToken = tokenData.data?.[0]?.access_token ?? tokenData.access_token;

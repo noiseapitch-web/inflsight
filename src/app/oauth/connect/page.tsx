@@ -32,6 +32,7 @@ export default async function OAuthConnectPage({ searchParams }: { searchParams:
 
   // Instagram Business Login OAuth URL — Meta가 제공한 형식 그대로 사용
   // searchParams.set() 쓰면 redirect_uri가 자동 인코딩되어 callback에서 토큰 교환 실패함
+  console.log("[OAuth] connect page redirect_uri:", `${baseUrl}/api/oauth/callback`);
   const igAuthUrl =
     `https://www.instagram.com/oauth/authorize` +
     `?force_reauth=true` +
