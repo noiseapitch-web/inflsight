@@ -30,13 +30,16 @@ export default async function OAuthConnectPage({ searchParams }: { searchParams:
   const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
   const appId = process.env.IG_APP_ID ?? "";
 
-  // Instagram Business Login OAuth URL (공식 문서 기준)
-  const igAuthUrl = new URL("https://www.instagram.com/oauth/authorize");
-  igAuthUrl.searchParams.set("client_id", appId);
-  igAuthUrl.searchParams.set("redirect_uri", `${baseUrl}/api/oauth/callback`);
-  igAuthUrl.searchParams.set("response_type", "code");
-  igAuthUrl.searchParams.set("scope", "instagram_business_basic,instagram_business_manage_insights,instagram_business_manage_comments,instagram_business_manage_messages,instagram_business_content_publish");
-  igAuthUrl.searchParams.set("state", token);
+  // Instagram Business Login OAuth URL — Meta가 제공한 형식 그대로 사용
+  // searchParams.set() 쓰면 redirect_uri가 자동 인코딩되어 callback에서 토큰 교환 실패함
+  const igAuthUrl =
+    `https://www.instagram.com/oauth/authorize` +
+    `?force_reauth=true` +
+    `&client_id=${appId}` +
+    `&redirect_uri=${baseUrl}/api/oauth/callback` +
+    `&response_type=code` +
+    `&scope=instagram_business_basic,instagram_business_manage_insights` +
+    `&state=${token}`;
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
@@ -70,7 +73,7 @@ export default async function OAuthConnectPage({ searchParams }: { searchParams:
           </div>
         </div>
 
-        <a href={igAuthUrl.toString()}
+        <a href={igAuthUrl}
           style={{ display:"block", background:"linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)", color:"#fff", textDecoration:"none", borderRadius:9, padding:"13px 20px", fontSize:14, fontWeight:600, marginBottom:12 }}>
           Instagram으로 연동하기
         </a>
