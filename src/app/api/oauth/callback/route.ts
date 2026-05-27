@@ -38,14 +38,18 @@ export async function GET(req: NextRequest) {
   try {
     // 1. code → short-lived access token
     // 공식 문서: https://api.instagram.com/oauth/access_token
+    const redirectUri = `${BASE_URL}/api/oauth/callback`;
+    const cleanCode = code.replace(/#_$/, "");
+    console.log("[OAuth] token exchange request:", { redirect_uri: redirectUri, code: cleanCode });
+
     const tokenRes = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
       body: new URLSearchParams({
         client_id:     process.env.IG_APP_ID ?? "",
         client_secret: process.env.IG_APP_SECRET ?? "",
         grant_type:    "authorization_code",
-        redirect_uri:  `${BASE_URL}/api/oauth/callback`,
-        code:          code.replace(/#_$/, ""), // 끝에 #_ 제거 (공식 문서 지침)
+        redirect_uri:  redirectUri,
+        code:          cleanCode, // 끝에 #_ 제거 (공식 문서 지침)
       }),
     });
 
