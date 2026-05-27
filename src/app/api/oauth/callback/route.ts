@@ -1,7 +1,7 @@
+// GET /api/oauth/callback?code=xxx&state=xxx
+// Instagram Business Login OAuth 콜백 처리
 export const dynamic = "force-dynamic";
 
-// GET /api/oauth/callback?code=xxx&state=xxx
-// Instagram OAuth 콜백 처리
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyInviteToken, encryptToken } from "@/lib/oauth/token";
@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. code → short-lived access token
+    // 공식 문서: https://api.instagram.com/oauth/access_token
     const tokenRes = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
       body: new URLSearchParams({
@@ -44,25 +45,30 @@ export async function GET(req: NextRequest) {
         client_secret: process.env.IG_APP_SECRET ?? "",
         grant_type:    "authorization_code",
         redirect_uri:  `${BASE_URL}/api/oauth/callback`,
-        code,
+        code:          code.replace(/#_$/, ""), // 끝에 #_ 제거 (공식 문서 지침)
       }),
     });
 
     const tokenData = await tokenRes.json() as {
+      data?: { access_token?: string; user_id?: string; permissions?: string }[];
       access_token?: string;
-      user_id?: number;
+      user_id?: number | string;
       error_message?: string;
-      error_type?: string;
     };
 
-    if (!tokenData.access_token) {
+    // 새 API: data 배열 형태, 구버전: 평면 객체
+    const shortToken = tokenData.data?.[0]?.access_token ?? tokenData.access_token;
+    const userId = tokenData.data?.[0]?.user_id ?? tokenData.user_id;
+
+    if (!shortToken) {
       console.error("[OAuth] token exchange failed:", tokenData);
       return NextResponse.redirect(`${BASE_URL}/oauth/error?msg=token_exchange_failed`);
     }
 
     // 2. short-lived → long-lived token (60일)
+    // 공식 문서: https://graph.instagram.com/access_token
     const longRes = await fetch(
-      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.IG_APP_SECRET}&access_token=${tokenData.access_token}`
+      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.IG_APP_SECRET}&access_token=${shortToken}`
     );
     const longData = await longRes.json() as {
       access_token?: string;
@@ -85,7 +91,7 @@ export async function GET(req: NextRequest) {
         accessToken:  encryptedToken,
         tokenExpiry:  expiry,
         oauthStatus:  "CONNECTED",
-        platformId:   String(tokenData.user_id ?? ""),
+        platformId:   String(userId ?? ""),
         updatedAt:    new Date(),
       },
     });
@@ -96,8 +102,8 @@ export async function GET(req: NextRequest) {
       data: { usedAt: new Date() },
     });
 
-    // 5. 즉시 계정 지표 1회 수집
-    await fetch(`${BASE_URL}/api/sync?creatorId=${verified.creatorId}`, { method: "POST" }).catch(() => {});
+    // 5. 즉시 지표 1회 수집 (실패해도 무시)
+    fetch(`${BASE_URL}/api/sync?creatorId=${verified.creatorId}`, { method: "POST" }).catch(() => {});
 
     return NextResponse.redirect(`${BASE_URL}/oauth/success`);
   } catch (err) {

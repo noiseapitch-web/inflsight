@@ -1,15 +1,19 @@
+// POST /api/sync — Instagram Business Login API 지표 수집
+// 공식 문서 기준: graph.instagram.com/v25.0/{id}/insights
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { decryptToken } from "@/lib/oauth/token";
 
-const IG_BASE = "https://graph.instagram.com";
+const IG_BASE = "https://graph.instagram.com/v25.0";
 
 async function fetchAndSave(creatorId: string, accessToken: string) {
   const results: { contentId: string; status: string }[] = [];
 
+  // ─── 1. 계정 기본 정보 수집 ────────────────────────────
   try {
+    // Instagram Business Login에서 가능한 필드들 (공식 문서 기준)
     const profileRes = await fetch(
       `${IG_BASE}/me?fields=id,username,followers_count,follows_count,media_count&access_token=${accessToken}`
     );
@@ -43,6 +47,7 @@ async function fetchAndSave(creatorId: string, accessToken: string) {
     }
   } catch (e) { console.error("[sync] profile fetch error:", e); }
 
+  // ─── 2. 콘텐츠 지표 수집 ──────────────────────────────
   const contents = await prisma.content.findMany({
     where: { creatorId, platform: "INSTAGRAM", platformMediaId: { not: null } },
   });
@@ -50,26 +55,64 @@ async function fetchAndSave(creatorId: string, accessToken: string) {
   for (const content of contents) {
     if (!content.platformMediaId) continue;
     try {
-      const fields = "id,like_count,comments_count,media_type,timestamp,video_views";
+      // 2-1. 기본 필드 (likes, comments)
       const mediaRes = await fetch(
-        `${IG_BASE}/${content.platformMediaId}?fields=${fields}&access_token=${accessToken}`
+        `${IG_BASE}/${content.platformMediaId}?fields=id,media_type,media_product_type,like_count,comments_count,timestamp&access_token=${accessToken}`
       );
-      if (!mediaRes.ok) { results.push({ contentId: content.id, status: `API_ERROR_${mediaRes.status}` }); continue; }
+      if (!mediaRes.ok) {
+        results.push({ contentId: content.id, status: `API_ERROR_${mediaRes.status}` });
+        continue;
+      }
       const media = await mediaRes.json() as {
         media_type?: string;
+        media_product_type?: string;
         like_count?: number;
         comments_count?: number;
-        video_views?: number;
       };
 
       const now = new Date();
-      const isVideo = media.media_type === "VIDEO";
+      const snapshotData: { metricName: string; metricValue: number }[] = [];
 
-      const snapshotData = [
-        { metricName: "likes_count", metricValue: media.like_count ?? null },
-        { metricName: "comments_count", metricValue: media.comments_count ?? null },
-        { metricName: "video_views", metricValue: isVideo ? (media.video_views ?? null) : null },
-      ].filter(s => s.metricValue !== null) as { metricName: string; metricValue: number }[];
+      if (typeof media.like_count === "number") {
+        snapshotData.push({ metricName: "likes_count", metricValue: media.like_count });
+      }
+      if (typeof media.comments_count === "number") {
+        snapshotData.push({ metricName: "comments_count", metricValue: media.comments_count });
+      }
+
+      // 2-2. Insights API로 조회수·도달·공유수·저장수 수집
+      // 공식 문서: /{media-id}/insights?metric=views,reach,shares,saved
+      // 콘텐츠 타입에 따라 다른 metric 사용 가능
+      const isVideo = media.media_type === "VIDEO";
+      const productType = media.media_product_type; // FEED, REELS, STORY
+      
+      // 모든 타입 공통 metric
+      const metrics: string[] = ["reach", "shares", "saved", "total_interactions", "views"];
+      // FEED, REELS에서만 가능한 metric
+      if (productType === "FEED" || productType === "REELS") {
+        metrics.push("profile_visits", "profile_activity");
+      }
+
+      try {
+        const insightsRes = await fetch(
+          `${IG_BASE}/${content.platformMediaId}/insights?metric=${metrics.join(",")}&access_token=${accessToken}`
+        );
+        if (insightsRes.ok) {
+          const insights = await insightsRes.json() as {
+            data?: { name: string; values: { value: number }[] }[];
+          };
+          insights.data?.forEach(metric => {
+            const value = metric.values?.[0]?.value;
+            if (typeof value === "number") {
+              // metric name 매핑: views → video_views (기존 코드 호환)
+              const dbName = metric.name === "views" ? "video_views" : metric.name;
+              snapshotData.push({ metricName: dbName, metricValue: value });
+            }
+          });
+        }
+      } catch (e) {
+        console.error("[sync] insights fetch error:", e);
+      }
 
       if (snapshotData.length > 0) {
         await prisma.contentMetricSnapshot.createMany({
@@ -85,7 +128,7 @@ async function fetchAndSave(creatorId: string, accessToken: string) {
       }
 
       results.push({ contentId: content.id, status: "success" });
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 300)); // rate limit 방지
     } catch (e) {
       results.push({ contentId: content.id, status: `error: ${String(e)}` });
     }
@@ -130,6 +173,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 토큰 D-7 이내면 갱신 시도
   for (const account of accounts) {
     if (!account.tokenExpiry || !account.accessToken) continue;
     const daysLeft = (account.tokenExpiry.getTime() - Date.now()) / 86_400_000;
@@ -137,7 +181,7 @@ export async function POST(req: NextRequest) {
       try {
         const decrypted = decryptToken(account.accessToken);
         const refreshRes = await fetch(
-          `${IG_BASE}/refresh_access_token?grant_type=ig_refresh_token&access_token=${decrypted}`
+          `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${decrypted}`
         );
         if (refreshRes.ok) {
           const data = await refreshRes.json() as { access_token?: string; expires_in?: number };
