@@ -40,7 +40,7 @@ export default async function OAuthConnectPage({ searchParams }: { searchParams:
     `&client_id=${appId}` +
     `&redirect_uri=${baseUrl}/api/oauth/callback` +
     `&response_type=code` +
-    `&scope=instagram_business_basic,instagram_business_manage_insights` +
+    `&scope=instagram_business_basic` +
     `&state=${token}`;
 
   console.log("[OAuth] full igAuthUrl:", igAuthUrl);
