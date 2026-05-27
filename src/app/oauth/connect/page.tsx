@@ -1,5 +1,7 @@
 // 크리에이터가 연동 링크 클릭 시 보이는 페이지
 // Instagram Business Login API로 리다이렉트
+export const dynamic = "force-dynamic";
+
 import { verifyInviteToken } from "@/lib/oauth/token";
 import { prisma } from "@/lib/prisma";
 
@@ -32,7 +34,6 @@ export default async function OAuthConnectPage({ searchParams }: { searchParams:
 
   // Instagram Business Login OAuth URL — Meta가 제공한 형식 그대로 사용
   // searchParams.set() 쓰면 redirect_uri가 자동 인코딩되어 callback에서 토큰 교환 실패함
-  console.log("[OAuth] connect page redirect_uri:", `${baseUrl}/api/oauth/callback`);
   const igAuthUrl =
     `https://www.instagram.com/oauth/authorize` +
     `?force_reauth=true` +
@@ -41,6 +42,8 @@ export default async function OAuthConnectPage({ searchParams }: { searchParams:
     `&response_type=code` +
     `&scope=instagram_business_basic,instagram_business_manage_insights` +
     `&state=${token}`;
+
+  console.log("[OAuth] full igAuthUrl:", igAuthUrl);
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
