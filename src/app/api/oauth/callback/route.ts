@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
     // 공식 문서: https://api.instagram.com/oauth/access_token
     const redirectUri = `${BASE_URL}/api/oauth/callback`;
     const cleanCode = code.replace(/#_$/, "");
+    console.log("[OAuth] callback received URL:", req.nextUrl.href);
     console.log("[OAuth] token exchange request:", { redirect_uri: redirectUri, code: cleanCode });
 
     // URLSearchParams는 redirect_uri를 percent-encode해서 Meta 검증 실패
